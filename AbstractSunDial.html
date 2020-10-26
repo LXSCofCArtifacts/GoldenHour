@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<style>
+			body {
+				background-color: #ffffff;
+				margin: 0;
+				overflow: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/94/three.min.js"></script>
+		<script>
+
+			var camera, scene, renderer;
+			var sunMesh, moonMesh, timeOfDay;
+			var light;
+			
+			//Array of rotation angles for our 4 structures
+			// 0: structure1
+			// 1: structure2
+			// 2: structure3
+			// 3: structure4
+			var structureAngleList = [0, 0, 0, 0];
+			// Array of reference pointers to the uppermost (in the graph hierachy)
+			// node representing the upper abstract1-4, respectively.
+			var structureNodeList = [undefined, undefined, undefined, undefined];
+			// Integer index to select active structure whose rotation angle will be
+			// updated by GUI input.
+			var currentStructureIndex = 0;			
+
+			init();
+			//animate();
+			
+			function init() {
+				camera = new THREE.PerspectiveCamera( 130, window.innerWidth / window.innerHeight, 0.1, 12 );
+				camera.position.z = 9.85;
+				camera.position.y = -2; 
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( "#87CEEB" );		
+				
+				//Create the plane that textured with grass
+				var planeGeometry = new THREE.PlaneBufferGeometry( 100, 50, 16, 16);
+				// texture was loaded in by url
+				var planeTexture = new THREE.TextureLoader().load("http://3.bp.blogspot.com/-3Nv74A0f8ZA/TtELKUKQU6I/AAAAAAAAAD8/4FuZtBwL18s/s1600/Grass+03+seamless.jpg");
+				planeTexture.wrapS = THREE.RepeatWrapping; 
+				planeTexture.wrapT = THREE.RepeatWrapping;
+				planeTexture.repeat.set(3, 3);
+				var planeMaterial = new THREE.MeshLambertMaterial( { map: planeTexture } );
+				var planeMesh = new THREE.Mesh( planeGeometry, planeMaterial );
+				planeMesh.rotation.x = -70;
+				planeMesh.position.y = -3;
+				//allow the grass to recieve shadows
+				planeMesh.receiveShadow = true;
+				scene.add( planeMesh );	
+				
+				//create the sun
+				var sunGeometry = new THREE.SphereGeometry(1.75, 50, 50);
+				var sunMaterial = new THREE.MeshBasicMaterial( {wireframe: true, color: "yellow"} );
+				sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+				sunMesh.position.y = 16;
+				sunMesh.position.x = -50;
+				sunMesh.scale.x = 1.75;
+				sunMesh.position.z = -.5;
+				scene.add(sunMesh);
+				
+ 				<!-- //create the moon -->
+				<!-- var moonGeometry = new THREE.SphereGeometry(1.75, 50, 50); -->
+				<!-- var moonMaterial = new THREE.MeshBasicMaterial( {wireframe: true, color: "white"} ); -->
+				<!-- moonMesh = new THREE.Mesh(moonGeometry, moonMaterial); -->
+				<!-- moonMesh.position.y = 16; -->
+				<!-- //moonMesh.position.x = -50; -->
+				<!-- moonMesh.scale.x = 1.75; -->
+				<!-- moonMesh.position.z = -.5; -->
+				<!-- moonMesh.visibile = false; -->
+				<!-- //scene.add(moonMesh); -->
+				
+				//create the geometry and material for the wood and canopy
+				var woodGeometry = new THREE.CylinderGeometry(.75, .75, 10, 16);
+				var woodTexture = new THREE.TextureLoader().load("https://www.howtocleanstuff.net/wp-content/uploads/hardwoodveneer.jpg");
+				woodTexture.wrapS = THREE.RepeatWrapping; 
+				woodTexture.wrapT = THREE.RepeatWrapping;
+				woodTexture.repeat.set(3, 3);
+				var woodMaterial = new THREE.MeshLambertMaterial( { map: woodTexture } );
+				var canopyGeometry = new THREE.ConeGeometry(2, 4.5, 16);
+				var canopyTexture = new THREE.TextureLoader().load("https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/5877e543-014c-4b8b-b6c2-37397c0c0c90/d4mi5h3-29cb675e-95fc-49a6-9958-35df13e986d4.jpg/v1/fill/w_894,h_894,q_75,strp/seamless_leaf_by_hhh316-d4mi5h3.jpg?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwic3ViIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsImF1ZCI6WyJ1cm46c2VydmljZTppbWFnZS5vcGVyYXRpb25zIl0sIm9iaiI6W1t7InBhdGgiOiIvZi81ODc3ZTU0My0wMTRjLTRiOGItYjZjMi0zNzM5N2MwYzBjOTAvZDRtaTVoMy0yOWNiNjc1ZS05NWZjLTQ5YTYtOTk1OC0zNWRmMTNlOTg2ZDQuanBnIiwid2lkdGgiOiI8PTg5NCIsImhlaWdodCI6Ijw9ODk0In1dXX0.CLd332-mWUYZqU6vMq1lcW1lTzTkLHx3zrYBr8eWrR8");
+				canopyTexture.wrapS = THREE.RepeatWrapping; 
+				canopyTexture.wrapT = THREE.RepeatWrapping;
+				canopyTexture.repeat.set(1, 1);
+				var canopyMaterial = new THREE.MeshLambertMaterial( { map: canopyTexture } );				
+				
+				//create tree1 wood
+				var wood1Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood1Mesh.position.x = -10;
+				wood1Mesh.position.y = 1;
+				wood1Mesh.scale.z = .6;
+				scene.add(wood1Mesh);
+				wood1Mesh.receiveShadow = true;
+				wood1Mesh.castShadow = true;
+				//create tree1 canopy
+				var canopy1Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy1Mesh.position.y = 5.5;
+				canopy1Mesh.position.x = -10;
+				scene.add(canopy1Mesh);
+				canopy1Mesh.receiveShadow = true;
+				canopy1Mesh.castShadow = true;
+				
+				//create tree2 wood
+				var wood2Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood2Mesh.position.x = 10;
+				wood2Mesh.position.y = 1;
+				wood2Mesh.scale.z = .6;
+				scene.add(wood2Mesh);
+				wood2Mesh.receiveShadow = true;
+				wood2Mesh.castShadow = true;
+				//create tree2 canopy
+				var canopy2Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy2Mesh.position.y = 7.5;
+				canopy2Mesh.position.x = 10;
+				scene.add(canopy2Mesh);
+				canopy2Mesh.receiveShadow = true;
+				canopy2Mesh.castShadow = true;
+				
+				//create tree3 wood
+				var wood3Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood3Mesh.position.x = 10;
+				wood3Mesh.position.y = 1;
+				wood3Mesh.position.z = 2.5;
+				wood3Mesh.scale.z = .6;
+				scene.add(wood3Mesh);
+				wood3Mesh.receiveShadow = true;
+				wood3Mesh.castShadow = true;
+				//create tree3 canopy
+				var canopy3Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy3Mesh.position.y = 5.5;
+				canopy3Mesh.position.x = 10;
+				canopy3Mesh.position.z = 2.5;
+				scene.add(canopy3Mesh);
+				canopy3Mesh.receiveShadow = true;
+				canopy3Mesh.castShadow = true;
+				
+				//create tree4 wood
+				var wood4Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood4Mesh.position.x = -10;
+				wood4Mesh.position.y = 1;
+				wood4Mesh.position.z = 2.5;
+				wood4Mesh.scale.z = .6;
+				scene.add(wood4Mesh);
+				wood4Mesh.receiveShadow = true;
+				wood4Mesh.castShadow = true;				
+				//create tree4 canopy
+				var canopy4Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy4Mesh.position.y = 7.5;
+				canopy4Mesh.position.x = -10;
+				canopy4Mesh.position.z = 2.5;
+				scene.add(canopy4Mesh);
+				canopy4Mesh.receiveShadow = true;
+				canopy4Mesh.castShadow = true;				
+				
+				//create tree5 wood
+				var wood5Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood5Mesh.position.x = -10;
+				//wood5Mesh.position.y = -.5;
+				wood5Mesh.position.z = 5;
+				wood5Mesh.scale.z = .7;
+				scene.add(wood5Mesh);
+				wood5Mesh.receiveShadow = true;
+				wood5Mesh.castShadow = true;				
+				//create tree5 canopy
+				var canopy5Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy5Mesh.position.y = 4.5;
+				canopy5Mesh.position.x = -10;
+				canopy5Mesh.position.z = 5;
+				scene.add(canopy5Mesh);
+				canopy5Mesh.receiveShadow = true;
+				canopy5Mesh.castShadow = true;				
+				
+				//create tree6 wood
+				var wood6Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood6Mesh.position.x = 10;
+				wood6Mesh.position.y = 1;
+				wood6Mesh.position.z = 5;
+				wood6Mesh.scale.z = .7;
+				scene.add(wood6Mesh);
+				wood6Mesh.receiveShadow = true;
+				wood6Mesh.castShadow = true;				
+				//create tree6 canopy
+				var canopy6Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy6Mesh.position.y = 5.5;
+				canopy6Mesh.position.x = 10;
+				canopy6Mesh.position.z = 5;
+				scene.add(canopy6Mesh);
+				canopy6Mesh.receiveShadow = true;
+				canopy6Mesh.castShadow = true;	
+				
+				//create tree7 wood
+				var wood7Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood7Mesh.position.x = 10;
+				wood7Mesh.position.y = 1;
+				wood7Mesh.position.z = 7.5;
+				wood7Mesh.scale.z = .4;
+				scene.add(wood7Mesh);
+				wood7Mesh.receiveShadow = true;
+				wood7Mesh.castShadow = true;	
+				//create tree7 canopy
+				var canopy7Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy7Mesh.position.y = 5.5;
+				canopy7Mesh.position.x = 10;
+				canopy7Mesh.position.z = 7.5;
+				scene.add(canopy7Mesh);
+				canopy7Mesh.receiveShadow = true;
+				canopy7Mesh.castShadow = true;	
+				
+				//create tree8 wood
+				var wood8Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood8Mesh.position.x = -10;
+				wood8Mesh.position.y = 1;
+				wood8Mesh.position.z = 7.5;
+				wood8Mesh.scale.z = .4;
+				scene.add(wood8Mesh);
+				wood8Mesh.receiveShadow = true;
+				wood8Mesh.castShadow = true;				
+				//create tree8 canopy
+				var canopy8Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy8Mesh.position.y = 5.5;
+				canopy8Mesh.position.x = -10;
+				canopy8Mesh.position.z = 7.5;
+				scene.add(canopy8Mesh);
+				canopy8Mesh.receiveShadow = true;
+				canopy8Mesh.castShadow = true;					
+				
+				//create tree9 wood
+				var wood9Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood9Mesh.position.x = -10;
+				wood9Mesh.position.y = 1;
+				wood9Mesh.position.z = -2.5;
+				scene.add(wood9Mesh);
+				wood9Mesh.receiveShadow = true;
+				wood9Mesh.castShadow = true;
+				//create tree8 canopy
+				var canopy9Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy9Mesh.position.y = 5.5;
+				canopy9Mesh.position.x = -10;
+				canopy9Mesh.position.z = -2.5;
+				scene.add(canopy9Mesh);
+				canopy9Mesh.receiveShadow = true;
+				canopy9Mesh.castShadow = true;	
+				
+				//create tree10 wood
+				var wood10Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood10Mesh.position.x = 10;
+				wood10Mesh.position.y = 2;
+				wood10Mesh.position.z = -2.5;
+				scene.add(wood10Mesh);
+				wood10Mesh.receiveShadow = true;
+				wood10Mesh.castShadow = true;				
+				//create tree8 canopy
+				var canopy10Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy10Mesh.position.y = 6.5;
+				canopy10Mesh.position.x = 10;
+				canopy10Mesh.position.z = -2.5;
+				scene.add(canopy10Mesh);
+				canopy10Mesh.receiveShadow = true;
+				canopy10Mesh.castShadow = true;		
+				
+				//create tree11 wood
+				var wood11Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood11Mesh.position.x = -13;
+				wood11Mesh.position.y = 1;
+				wood11Mesh.position.z = 5.5;
+				wood11Mesh.scale.z = .4;
+				scene.add(wood11Mesh);
+				wood11Mesh.receiveShadow = true;
+				wood11Mesh.castShadow = true;				
+				//create tree11 canopy
+				var canopy11Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy11Mesh.position.y = 5.5;
+				canopy11Mesh.position.x = -13;
+				canopy11Mesh.position.z = 5.5;
+				scene.add(canopy11Mesh);
+				canopy11Mesh.receiveShadow = true;
+				canopy11Mesh.castShadow = true;	
+				
+				//create tree12 wood
+				var wood12Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood12Mesh.position.x = 13;
+				wood12Mesh.position.y = 1;
+				wood12Mesh.position.z = 5.5;
+				wood12Mesh.scale.z = .4;
+				scene.add(wood12Mesh);
+				wood11Mesh.receiveShadow = true;
+				wood11Mesh.castShadow = true;				
+				//create tree12 canopy
+				var canopy12Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy12Mesh.position.y = 6.5;
+				canopy12Mesh.position.x = 13;
+				canopy12Mesh.position.z = 5.5;
+				scene.add(canopy12Mesh);
+				canopy12Mesh.receiveShadow = true;
+				canopy12Mesh.castShadow = true;	
+				
+				//create tree13 wood
+				var wood13Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood13Mesh.position.x = -13;
+				wood13Mesh.position.y = 1;
+				wood13Mesh.position.z = 2.5;
+				wood13Mesh.scale.z = .4;
+				scene.add(wood13Mesh);
+				wood13Mesh.receiveShadow = true;
+				wood13Mesh.castShadow = true;				
+				//create tree13 canopy
+				var canopy13Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy13Mesh.position.y = 5.5;
+				canopy13Mesh.position.x = -13;
+				canopy13Mesh.position.z = 2.5;
+				scene.add(canopy13Mesh);
+				canopy13Mesh.receiveShadow = true;
+				canopy13Mesh.castShadow = true;	
+				
+				//create tree14 wood
+				var wood14Mesh = new THREE.Mesh(woodGeometry, woodMaterial);
+				wood14Mesh.position.x = 13;
+				wood14Mesh.position.y = 1;
+				wood14Mesh.position.z = 2.5;
+				wood14Mesh.scale.z = .4;
+				scene.add(wood14Mesh);
+				wood14Mesh.receiveShadow = true;
+				wood14Mesh.castShadow = true;				
+				//create tree14 canopy
+				var canopy14Mesh = new THREE.Mesh(canopyGeometry, canopyMaterial);
+				canopy14Mesh.position.y = 5.5;
+				canopy14Mesh.position.x = 13;
+				canopy14Mesh.position.z = 2.5;
+				scene.add(canopy14Mesh);
+				canopy14Mesh.receiveShadow = true;
+				canopy14Mesh.castShadow = true;	
+				
+				var textureLoader = new THREE.TextureLoader();
+				// Load texture from Web-hosted source - does not require localhost setup.
+				var postTexture = textureLoader.load("https://img.freepik.com/free-vector/gold-metal-texture-background_46250-145.jpg?size=626&ext=jpgnote");
+				var postMaterial = new THREE.MeshLambertMaterial( { map: postTexture } );	
+
+				//-----Inverse Kinematics-----
+				// Create polygon geometry for the base structure.
+				var baseLength = 4;
+				var baseGeometry = new THREE.ConeBufferGeometry( 2, baseLength, 10 );
+				
+				// Create polygon geometry for the other 3 segments.
+				var postLength = 8;
+				var postWidth = 3;
+				var postGeometry = new THREE.BoxBufferGeometry( postWidth, postLength, 5 );
+
+				// Create upper post segment
+				var structure1Mesh = new THREE.Mesh( baseGeometry, postMaterial );
+				structure1Mesh.receiveShadow = true;
+				structure1Mesh.castShadow = true;
+				var structure1Joint = new THREE.Object3D();
+				structure1Joint.position.z = 7.25;		
+				structure1Joint.position.y = -2;
+				structure1Joint.scale.x = .175;
+				structure1Joint.scale.y = .175;
+				structure1Joint.rotation.x = 78.7;
+				// Link the upper post polygon mesh node to be a child of the shoulder joint node.
+				structure1Joint.add(structure1Mesh);
+				// Save a reference to the shoulder joint node so our GUI can rotate it.
+				structureNodeList[0] = structure1Joint;
+
+				// Setup lower post segment
+				var structure2Mesh = new THREE.Mesh( postGeometry, postMaterial );
+				var structure2Joint = new THREE.Object3D();
+				structure2Mesh.position.z = 6.25;		
+				structure2Mesh.receiveShadow = true;
+				structure2Mesh.castShadow = true;
+				// Translate coordinate system down length of upper post so elbow joint
+				// will begin at the end of the upper post.
+				structure2Joint.position.y = -baseLength;	
+				structure2Joint.add(structure2Mesh);
+				structureNodeList[1] = structure2Joint;
+				structure1Joint.add(structure2Joint);
+
+				var structure3Mesh = new THREE.Mesh( postGeometry, postMaterial );
+				structure3Mesh.receiveShadow = true;
+				structure3Mesh.castShadow = true;
+				structure3Mesh.rotation.y = 80.1;
+				structure3Mesh.scale.x = .05;				
+				var structure3Joint = new THREE.Object3D();
+				// Translate coordinate system down length of upper post so elbow joint
+				// will begin at the end of the upper post.
+				structure3Joint.position.y = -postLength;
+				structure3Joint.position.x = -postWidth + -1.5;
+				structure3Mesh.position.z = 7.25;		
+				structure3Joint.add(structure3Mesh);
+				structureNodeList[2] = structure3Joint;
+				structure2Joint.add(structure3Joint);
+
+				var structure4Mesh = new THREE.Mesh( postGeometry, postMaterial );
+				structure4Mesh.receiveShadow = true;
+				structure4Mesh.castShadow = true;
+				structure4Mesh.rotation.y = 80.1;
+				structure4Mesh.scale.x = .05;				
+				var structure4Joint = new THREE.Object3D();
+				// Translate coordinate system down length of upper post so elbow joint
+				// will begin at the end of the upper post.
+				structure4Joint.position.y = -postLength;
+				structure4Joint.position.x = postWidth + 1.5;
+				structure4Mesh.position.z = 7.25;		
+				structure4Joint.add(structure4Mesh);
+				structureNodeList[3] = structure4Joint;
+				structure2Joint.add(structure4Joint);
+
+				scene.add( structure1Joint );
+				
+				//Create a PointLight and turn on shadows for the light
+				light = new THREE.PointLight( 0xffffff, 0, 100 );
+				light.castShadow = true;            // default false
+				sunMesh.add( light );
+				
+				//add an effective ambient light
+				var ambientLight = new THREE.AmbientLight(0xffffff, .175 );
+				scene.add(ambientLight);
+
+				//Set up shadow properties for the light
+				light.shadow.mapSize.width = 1024;  // default
+				light.shadow.mapSize.height = 1024; // default
+				light.shadow.camera.near = 0.5;       // default
+				light.shadow.camera.far = 500;      // default
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				//renderer.setPixelRatio( window.devicePixelRatio );
+				// shadow
+				renderer.shadowMap.enabled = true;
+				// shadow
+				renderer.shadowMap.type = THREE.PCFSoftShadowMap;			
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+				
+				window.addEventListener( 'resize', onWindowResize, false );
+				
+				// Enable keyboard input listener.
+				// Keyboard input will select and rotate a body segment.
+				document.addEventListener('keypress', onKeyPress, false);
+				document.addEventListener('keydown', onKeyDown, false);
+			}
+			
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}			
+
+			var floatTimeBefore = undefined;
+			function animate( time ) {
+				sunMesh.rotation.x = time * .00001;
+				//moonMesh.rotation.x = time * .00001;
+				
+				var floatTimeElapsedMs = 0.0;
+				if (floatTimeBefore != undefined)
+					floatTimeElapsedMs = time - floatTimeBefore;
+				floatTimeBefore = time;
+				var floatSunDistance = 2.0;
+				var intensity = .055;
+				// turn milliseconds into seconds
+				var floatTimeElapsedSec = floatTimeElapsedMs / 1000;
+				// units of distance per second
+				var floatDistanceChange = floatTimeElapsedSec * floatSunDistance;
+				var intensityChange = floatTimeElapsedSec * intensity;
+				//timeOfDay = "day";
+				
+				//if (timeOfDay == "day"){
+					if (sunMesh.position.x >= 50){
+						//timeOfDay = "night";
+						//scene.background = new THREE.color("gray");
+						//moonMesh.position.x = -20;
+						sunMesh.position.x = -50;
+						light.intensity = 0;
+					}
+					else {
+						sunMesh.position.x += floatDistanceChange;
+						if (sunMesh.position.x > 0 & sunMesh.position.x <= 50){
+							light.intensity -= intensityChange;
+						} else {
+							light.intensity += intensityChange;
+						}
+
+					}
+				<!-- } else { -->
+					<!-- moonMesh.position.x += floatDistanceChange; -->
+					<!-- if (moonMesh.position.x >= 20){ -->
+						<!-- timeOfDay = "day"; -->
+						<!-- sunMesh.visibile = true; -->
+						<!-- moonMesh.visible = false; -->
+						<!-- //scene.background = new THREE.Color( "#87CEEB" );	 -->
+						<!-- moonMesh.position.x = -20; -->
+						<!-- sunMesh.position.x = -20; -->
+					<!-- } -->
+				<!-- } -->
+				
+				renderer.render( scene, camera );
+				requestAnimationFrame( animate );
+				
+				// Loop through joints and apply current rotation angle as set by the GUI.
+				for(var i = 0; i < structureAngleList.length; i++)
+					structureNodeList[i].rotation.z = structureAngleList[i] * Math.PI / 180.0;				
+			}
+			
+			function onKeyDown(event)
+			{
+				// Get the Unicode value
+				var keyCode = event.charCode || event.keyCode;  
+				var keyString = String.fromCharCode(keyCode);
+				
+				var deltaAngle = 0;
+				var angleStep = 1;
+				
+				if(keyCode == 37) // LEFT
+					deltaAngle = -angleStep;
+				else if(keyCode == 40) // DOWN
+					deltaAngle = -angleStep;	
+				else if(keyCode == 38) // RIGHT
+					deltaAngle = angleStep;
+				else if(keyCode == 39) // UP
+					deltaAngle = angleStep;		
+
+				if(Math.abs(deltaAngle) > 0)
+				{
+					structureAngleList[currentStructureIndex] = structureAngleList[currentStructureIndex] + deltaAngle;
+					if(structureAngleList[currentStructureIndex] < -35)
+						structureAngleList[currentStructureIndex] = -35;
+					else if(structureAngleList[currentStructureIndex] > 35)
+						structureAngleList[currentStructureIndex] = 35;
+				}					
+			}			
+			
+			function onKeyPress(event)
+			{	
+				// Get the Unicode value
+				var keyCode = event.charCode || event.keyCode;  
+				var keyString = String.fromCharCode(keyCode);
+
+				// Use number keys 1, 2, 3 to choose which joint to rotate.
+				if(keyCode == 49)
+					currentStructureIndex = 0;
+				else if(keyCode == 50)
+					currentStructureIndex = 1;
+				else if(keyCode == 51)
+					currentStructureIndex = 2;
+				else if(keyCode == 52)
+					currentStructureIndex = 3;
+				
+				console.log("current structure index: " + currentStructureIndex);
+			}			
+
+			//init();
+			requestAnimationFrame( animate );
+
+		</script>
+	</body>
+</html>
